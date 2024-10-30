@@ -1,7 +1,13 @@
 package middleware
 
-import ()
+import(
+	"github.com/gin-gonic/gin"
+	helper "golang-restaurant-management/helpers"
+)
 
-func Authentication() {
-	
+func Authentication() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+	}
+
 }

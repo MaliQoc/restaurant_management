@@ -25,7 +25,7 @@ func GetOrders() gin.HandlerFunc {
 		result, err := orderCollection.Find(ctx, bson.M{})
 
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occurred while fetching the items."})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occurred while fetching the orders."})
 			return
 		}
 

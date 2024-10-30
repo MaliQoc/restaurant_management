@@ -29,7 +29,6 @@ func timePtr(t time.Time) *time.Time {
 func GetFoods() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		defer cancel()
 
 		recordPerPage, err := strconv.Atoi(c.Query("recordPerPage"))
 		if err != nil || recordPerPage < 1 {
@@ -60,6 +59,8 @@ func GetFoods() gin.HandlerFunc {
 		}
 
 		result, err := foodCollection.Aggregate(ctx, mongo.Pipeline{matchStage, groupStage, projectStage})
+		defer cancel()
+
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "error occurred while listing food items"})
 			return
@@ -140,10 +141,10 @@ func CreateFood() gin.HandlerFunc {
 func UpdateFood() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		defer cancel()
 
 		var food models.Food
 		var menu models.Menu
+
 		foodId := c.Param("food_id")
 
 		if err := c.BindJSON(&food); err != nil {
@@ -167,6 +168,8 @@ func UpdateFood() gin.HandlerFunc {
 
 		if food.Menu_id != "" {
 			err := foodCollection.FindOne(ctx, bson.M{"menu_id": food.Menu_id}).Decode(&menu)
+			defer cancel()
+
 			if err != nil {
 				msg := fmt.Sprintf("Menu wasn't found.")
 				c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
