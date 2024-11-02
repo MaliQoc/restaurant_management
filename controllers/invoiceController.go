@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"golang-restaurant-management/database"
 	"golang-restaurant-management/models"
 	"log"
@@ -74,6 +73,11 @@ func GetInvoice() gin.HandlerFunc {
 			invoiceView.Payment_method = *invoice.Payment_method
 		}
 
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occurred while fetching order items."})
+			return
+		}
+
 		invoiceView.Invoice_id = invoice.Invoice_id
 		invoiceView.Payment_status = invoice.Payment_status
 		invoiceView.Payment_due = allOrderItems[0]["payment_due"]
@@ -87,6 +91,8 @@ func GetInvoice() gin.HandlerFunc {
 func CreateInvoice() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
 		var invoice models.Invoice
 
 		if err := c.BindJSON(&invoice); err != nil {
@@ -100,7 +106,7 @@ func CreateInvoice() gin.HandlerFunc {
 		defer cancel()
 
 		if err != nil {
-			msg := fmt.Sprintf("message: Order wasn't found.")
+			msg := "message: Order wasn't found."
 			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 			return
 		}
@@ -131,7 +137,7 @@ func CreateInvoice() gin.HandlerFunc {
 
 		result, insertErr := invoiceCollection.InsertOne(ctx, invoice)
 		if insertErr != nil {
-			msg := fmt.Sprintf("Invoice item wasn't created.")
+			msg := "Invoice item wasn't created."
 			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 			return
 		}
@@ -143,6 +149,8 @@ func CreateInvoice() gin.HandlerFunc {
 func UpdateInvoice() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
 		var invoice models.Invoice
 		invoiceId := c.Param("invoice_id")
 
@@ -181,7 +189,7 @@ func UpdateInvoice() gin.HandlerFunc {
 		result, err := invoiceCollection.UpdateOne(ctx, filter, bson.M{"$set": updateObj}, &opt)
 
 		if err != nil {
-			msg := fmt.Sprintf("Invoice item update failed.")
+			msg := "Invoice item update failed."
 			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 			return
 		}

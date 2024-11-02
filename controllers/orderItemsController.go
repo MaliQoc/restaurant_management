@@ -147,6 +147,7 @@ func GetOrderItem() gin.HandlerFunc {
 func CreateOrderItem() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
 
 		var orderItemPack OrderItemPack
 		var order models.Order
@@ -194,6 +195,7 @@ func CreateOrderItem() gin.HandlerFunc {
 func UpdateOrderItem() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
 
 		var orderItem models.OrderItem
 

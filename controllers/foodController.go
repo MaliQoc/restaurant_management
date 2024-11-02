@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"golang-restaurant-management/database"
 	"golang-restaurant-management/models"
 	"math"
@@ -115,8 +114,7 @@ func CreateFood() gin.HandlerFunc {
 
 		err := foodCollection.FindOne(ctx, bson.M{"menu_id": food.Menu_id}).Decode(&menu)
 		if err != nil {
-			msg := fmt.Sprintf("Menu wasn't found.")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Menu wasn't found."})
 			return
 		}
 
@@ -129,8 +127,7 @@ func CreateFood() gin.HandlerFunc {
 
 		result, insertErr := foodCollection.InsertOne(ctx, food)
 		if insertErr != nil {
-			msg := fmt.Sprintf("Food item wasn't created.")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Food item wasn't created."})
 			return
 		}
 
@@ -141,6 +138,7 @@ func CreateFood() gin.HandlerFunc {
 func UpdateFood() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
 
 		var food models.Food
 		var menu models.Menu
@@ -171,8 +169,7 @@ func UpdateFood() gin.HandlerFunc {
 			defer cancel()
 
 			if err != nil {
-				msg := fmt.Sprintf("Menu wasn't found.")
-				c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Menu wasn't found."})
 				return
 			}
 			updateObj = append(updateObj, bson.E{Key: "menu_id", Value: food.Menu_id})
@@ -190,8 +187,7 @@ func UpdateFood() gin.HandlerFunc {
 
 		result, err := foodCollection.UpdateOne(ctx, filter, bson.D{{Key: "$set", Value: updateObj}}, &opt)
 		if err != nil {
-			msg := fmt.Sprintf("Food item update failed.")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Food item update failed."})
 			return
 		}
 

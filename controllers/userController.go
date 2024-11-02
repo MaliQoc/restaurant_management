@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"golang-restaurant-management/database"
 	helper "golang-restaurant-management/helpers"
 	"golang-restaurant-management/models"
@@ -23,34 +22,32 @@ var userCollection *mongo.Collection = database.OpenCollection(database.Client, 
 func GetUsers() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
 
 		recordPerPage, err := strconv.Atoi(c.Query("recordPerPage"))
-
 		if err != nil || recordPerPage < 1 {
 			recordPerPage = 10
 		}
 
 		page, err := strconv.Atoi(c.Query("page"))
-
 		if err != nil || page < 1 {
 			page = 1
 		}
 
 		startIndex := (page - 1) * recordPerPage
-		startIndex, err = strconv.Atoi(c.Query("startIndex"))
 
-		matchStage := bson.D{{"$match", bson.D{{}}}}
+		matchStage := bson.D{{Key: "$match", Value: bson.D{}}}
 		projectStage := bson.D{
-			{"project", bson.D{
-				{"_id", 0},
-				{"total_count", 1},
-				{"user_items", bson.D{{"$slice", []interface{}{"$data", startIndex, recordPerPage}}}},
-			}}}
+			{Key: "$project", Value: bson.D{
+				{Key: "_id", Value: 0},
+				{Key: "total_count", Value: 1},
+				{Key: "user_items", Value: bson.D{
+					{Key: "$slice", Value: []interface{}{"$data", startIndex, recordPerPage}},
+				}},
+			}},
+		}
 
-		result, err := userCollection.Aggregate(ctx, mongo.Pipeline{
-			matchStage, projectStage})
-		defer cancel()
-
+		result, err := userCollection.Aggregate(ctx, mongo.Pipeline{matchStage, projectStage})
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occurred while fetching the user items."})
 			return
@@ -67,13 +64,12 @@ func GetUsers() gin.HandlerFunc {
 func GetUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		userId := c.Param("user_id")
+		defer cancel()
 
+		userId := c.Param("user_id")
 		var user models.User
 
 		err := userCollection.FindOne(ctx, bson.M{"user_id": userId}).Decode(&user)
-		defer cancel()
-
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occurred while fetching the user items."})
 			return
@@ -85,42 +81,35 @@ func GetUser() gin.HandlerFunc {
 func SignUp() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		var user models.User
+		defer cancel()
 
+		var user models.User
 		if err := c.BindJSON(&user); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
 		validationErr := validate.Struct(user)
-
 		if validationErr != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
 			return
 		}
 
-		count, err := userCollection.CountDocuments(ctx, bson.M{"email": user.Email})
-		defer cancel()
-
+		emailCount, err := userCollection.CountDocuments(ctx, bson.M{"email": user.Email})
 		if err != nil {
 			log.Panic(err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occured while checking for the email."})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occurred while checking for the email."})
 			return
 		}
 
-		password := HashPassword(*user.Password)
-		user.Password = &password
-
-		count, err = userCollection.CountDocuments(ctx, bson.M{"phone": user.Phone})
-		defer cancel()
-
+		phoneCount, err := userCollection.CountDocuments(ctx, bson.M{"phone": user.Phone})
 		if err != nil {
 			log.Panic(err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occured while checking for the phone."})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occurred while checking for the phone."})
 			return
 		}
 
-		if count > 0 {
+		if emailCount > 0 || phoneCount > 0 {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "This email or phone number already exists."})
 			return
 		}
@@ -131,18 +120,16 @@ func SignUp() gin.HandlerFunc {
 		user.ID = primitive.NewObjectID()
 		user.User_id = user.ID.Hex()
 
-		token, refreshToken, _ := helper.GenerateAllTokens(*user.Email, *user.First_name, *user.Last_Name, *&user.User_id)
+		token, refreshToken, _ := helper.GenerateAllTokens(*user.Email, *user.First_name, *user.Last_name, user.User_id)
 		user.Token = &token
 		user.Refresh_Token = &refreshToken
 
 		resultInsertionNumber, insertErr := userCollection.InsertOne(ctx, user)
-
 		if insertErr != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "User item wasn't created."})
 			return
 		}
 
-		defer cancel()
 		c.JSON(http.StatusOK, resultInsertionNumber)
 	}
 }
@@ -150,6 +137,8 @@ func SignUp() gin.HandlerFunc {
 func Login() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
 		var user models.User
 		var foundUser models.User
 
@@ -159,23 +148,18 @@ func Login() gin.HandlerFunc {
 		}
 
 		err := userCollection.FindOne(ctx, bson.M{"email": user.Email}).Decode(&foundUser)
-		defer cancel()
-
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found, login seems to be incorrect."})
 			return
 		}
 
 		passwordIsValid, msg := VerifyPassword(*user.Password, *foundUser.Password)
-		defer cancel()
-
-		if passwordIsValid != true {
+		if !passwordIsValid {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 			return
 		}
 
-		token, refreshToken, _ := helper.GenerateAllTokens(*foundUser.Email, *foundUser.FirstName, *foundUser.LastName, *&foundUser.User_id)
-
+		token, refreshToken, _ := helper.GenerateAllTokens(*foundUser.Email, *foundUser.First_name, *foundUser.Last_name, foundUser.User_id)
 		helper.UpdateAllTokens(token, refreshToken, foundUser.User_id)
 
 		c.JSON(http.StatusOK, foundUser)
@@ -184,11 +168,9 @@ func Login() gin.HandlerFunc {
 
 func HashPassword(password string) string {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
-
 	if err != nil {
 		log.Panic(err)
 	}
-
 	return string(bytes)
 }
 
@@ -198,7 +180,7 @@ func VerifyPassword(userPassword string, providedPassword string) (bool, string)
 	msg := ""
 
 	if err != nil {
-		msg = fmt.Sprintf("login or password is incorrect")
+		msg = "login or password is incorrect."
 		check = false
 	}
 	return check, msg
